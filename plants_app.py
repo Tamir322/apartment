@@ -596,7 +596,6 @@ app.include_router(plants_router)
 @app.get("/health")
 def healthcheck():
     raw_env = os.getenv("DATABASE_URL") or ""
-    # Safe inspect of first 30 chars
     env_preview = raw_env[:30] if raw_env else "NOT_SET"
     db_type = "postgresql" if "postgres" in str(engine.url) else "sqlite_ephemeral"
             
@@ -606,7 +605,8 @@ def healthcheck():
         "database_type": db_type,
         "database_url_configured": bool(raw_env),
         "database_url_prefix": env_preview,
-        "active_engine_url": str(engine.url)
+        "active_engine_url": str(engine.url),
+        "db_error": str(db_connection_error)
     }
 
 
