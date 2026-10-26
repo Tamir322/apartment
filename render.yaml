@@ -1,0 +1,14 @@
+services:
+  # Standalone Plant Tracker Web Service (Deployable to Render with Supabase PostgreSQL)
+  - type: web
+    name: plant-watering-tracker
+    env: python
+    plan: free
+    region: oregon
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn plants_app:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: DATABASE_URL
+        sync: false # Set in Render Dashboard: your Supabase PostgreSQL connection string (postgresql://postgres:[password]@db.[project-ref].supabase.co:5432/postgres)

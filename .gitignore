@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+
+# Large binaries (Stockfish engine is 100MB+)
+*.exe
+stockfish*
+
+# Local SQLite databases (Cloud uses Supabase PostgreSQL)
+*.db
+*.db-shm
+*.db-wal
+
+# Secrets & local config
+.env

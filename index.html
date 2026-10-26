@@ -1,0 +1,840 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Personal Tactics &amp; Blunder Lab</title>
+  <link rel="stylesheet" href="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.css">
+  <style>
+    :root {
+      --bg:      #09090b;
+      --card:    #18181b;
+      --border:  #27272a;
+      --text:    #f4f4f5;
+      --muted:   #a1a1aa;
+      --accent:  #38bdf8;
+      --green:   #4ade80;
+      --red:     #f87171;
+      --amber:   #fbbf24;
+      --purple:  #a78bfa;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      margin: 0;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    /* ── HUB HEADER ── */
+    .hub-header {
+      width: 100%;
+      max-width: 900px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 16px;
+      margin-bottom: 14px;
+    }
+    .hub-brand {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 700;
+      font-size: 0.95rem;
+      color: var(--text);
+    }
+    .hub-nav {
+      display: flex;
+      gap: 6px;
+    }
+    .hub-nav a {
+      text-decoration: none;
+      color: var(--muted);
+      font-size: 0.85rem;
+      font-weight: 600;
+      padding: 6px 14px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.15s ease;
+    }
+    .hub-nav a.active {
+      background: #2563eb;
+      color: #fff;
+    }
+    .hub-nav a:hover:not(.active) {
+      background: #27272a;
+      color: var(--text);
+    }
+
+    /* ── Top Stats Bar ── */
+    .top-bar {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 18px;
+      font-size: 0.85rem;
+      color: var(--muted);
+      display: flex;
+      gap: 20px;
+      margin-bottom: 14px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .top-bar strong { color: var(--text); }
+
+    /* ── Mode Switcher ── */
+    .mode-switcher {
+      display: flex;
+      gap: 0;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+      margin-bottom: 14px;
+    }
+    .mode-btn {
+      background: var(--card);
+      color: var(--muted);
+      border: none;
+      padding: 9px 20px;
+      font-size: 0.9rem;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+    }
+    .mode-btn.active {
+      background: #2563eb;
+      color: #fff;
+      font-weight: 600;
+    }
+    .mode-btn:hover:not(.active) { background: #27272a; color: var(--text); }
+
+    /* ── Controls Row ── */
+    .controls-row {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 14px;
+      align-items: center;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    select, .btn {
+      background: var(--card);
+      color: var(--text);
+      border: 1px solid var(--border);
+      padding: 8px 14px;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      cursor: pointer;
+    }
+    .btn-primary   { background: #2563eb; border-color: #1d4ed8; font-weight: 600; }
+    .btn-primary:hover { background: #1d4ed8; }
+    .btn-secondary:hover { background: #27272a; }
+    .btn-danger    { background: #7f1d1d; border-color: #991b1b; }
+    .btn-danger:hover { background: #991b1b; }
+    .btn-purple    { background: #4c1d95; border-color: #5b21b6; }
+    .btn-purple:hover { background: #5b21b6; }
+
+    /* ── Header / Badges ── */
+    .header { text-align: center; margin-bottom: 10px; }
+    .badges { display: flex; gap: 8px; justify-content: center; margin-bottom: 6px; flex-wrap: wrap; }
+    .badge {
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      background: var(--card);
+      border: 1px solid var(--border);
+    }
+    .badge-category { color: var(--amber); }
+    .badge-motif    { color: var(--accent); }
+    .badge-sr       { color: var(--green); }
+    .badge-wp       { color: var(--purple); }
+
+    /* ── Board ── */
+    #board {
+      width: 460px;
+      max-width: 90vw;
+      border-radius: 6px;
+      overflow: hidden;
+      box-shadow: 0 12px 30px rgba(0,0,0,0.6);
+    }
+
+    /* ── Puzzle Timer ── */
+    .timer-row {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin: 10px 0 4px;
+      font-size: 0.92rem;
+    }
+    .puzzle-timer { color: var(--accent); font-weight: 700; font-size: 1.1rem; min-width: 56px; }
+    .cycle-clock  { color: var(--purple); font-size: 0.88rem; }
+
+    /* ── Progress Bar ── */
+    .progress-wrap {
+      width: 460px;
+      max-width: 90vw;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      height: 10px;
+      margin-top: 8px;
+      overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%;
+      background: var(--purple);
+      border-radius: 6px;
+      transition: width 0.3s ease;
+    }
+
+    /* ── Woodpecker Panel ── */
+    #wp-panel {
+      width: 460px;
+      max-width: 90vw;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px 18px;
+      margin-bottom: 12px;
+      display: none;
+    }
+    #wp-panel h3 { margin: 0 0 10px; font-size: 1rem; color: var(--purple); }
+    .wp-stats-row { display: flex; gap: 18px; flex-wrap: wrap; font-size: 0.85rem; color: var(--muted); }
+    .wp-stats-row strong { color: var(--text); }
+    .wp-sets-list { margin-top: 10px; max-height: 120px; overflow-y: auto; }
+    .wp-set-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 5px 8px; border-radius: 5px; cursor: pointer;
+      font-size: 0.85rem;
+    }
+    .wp-set-item:hover { background: #27272a; }
+    .wp-set-item.selected { background: #1e1b4b; border: 1px solid var(--purple); }
+    .wp-create-row { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+    .wp-create-row input {
+      background: var(--bg); color: var(--text);
+      border: 1px solid var(--border); border-radius: 6px;
+      padding: 6px 10px; font-size: 0.85rem; flex: 1; min-width: 100px;
+    }
+
+    /* ── Feedback Panel ── */
+    .feedback-panel {
+      margin-top: 14px;
+      min-height: 70px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+    }
+    #feedback { font-size: 1.05rem; font-weight: 600; text-align: center; }
+    .action-buttons { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+    .meta-footer { margin-top: 10px; font-size: 0.85rem; color: var(--muted); }
+    .meta-footer a { color: var(--accent); text-decoration: none; }
+    .meta-footer a:hover { text-decoration: underline; }
+
+    /* ── SM-2 Info Strip ── */
+    .sr-info {
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-top: 4px;
+      text-align: center;
+    }
+    .sr-info span { color: var(--text); }
+  </style>
+</head>
+<body>
+
+  <!-- ── Hub Navigation Bar ── -->
+  <header class="hub-header">
+    <div class="hub-brand">
+      <span>🏠</span>
+      <span>Apartment Hub</span>
+    </div>
+    <nav class="hub-nav">
+      <a href="/chess" class="active">♟️ Chess Trainer</a>
+      <a href="/plants">🌿 Plant Tracker</a>
+    </nav>
+  </header>
+
+  <!-- ── Stats Bar ── -->
+  <div class="top-bar">
+    <div>Daemon: <strong id="stat-daemon">Connecting...</strong></div>
+    <div>Last Game: <strong id="stat-last-game">None</strong></div>
+    <div>Games Audited: <strong id="stat-games">0</strong></div>
+    <div>Unsolved / Total: <strong id="stat-puzzles">0 / 0</strong></div>
+    <div>Due (SR): <strong id="stat-due">0</strong></div>
+  </div>
+
+  <!-- ── Mode Switcher ── -->
+  <div class="mode-switcher">
+    <button class="mode-btn active" id="btn-mode-sr"  onclick="setMode('sr')">📚 Spaced Repetition (Due Queue)</button>
+    <button class="mode-btn"        id="btn-mode-wp"  onclick="setMode('wp')">🪵 Woodpecker Cycle Mode</button>
+  </div>
+
+  <!-- ── Woodpecker Panel (visible only in WP mode) ── -->
+  <div id="wp-panel">
+    <h3>🪵 Woodpecker Sets</h3>
+    <div class="wp-create-row">
+      <input type="text"   id="wp-name"   placeholder="Set name" value="My Woodpecker Set">
+      <input type="number" id="wp-size"   placeholder="Size" value="200" min="10" max="1000" style="width:80px;">
+      <button class="btn btn-purple" onclick="createWoodpeckerSet()">+ Create Set</button>
+    </div>
+    <div class="wp-sets-list" id="wp-sets-list"></div>
+    <div class="wp-stats-row" id="wp-stats-row" style="margin-top:10px; display:none;">
+      <div>Cycle: <strong id="wp-cycle">1</strong></div>
+      <div>Remaining: <strong id="wp-remaining">—</strong></div>
+      <div>Accuracy: <strong id="wp-accuracy">—</strong></div>
+      <div>Cycle Time: <strong id="wp-cycle-time">—</strong></div>
+    </div>
+  </div>
+
+  <!-- ── Category Filter + Skip ── -->
+  <div class="controls-row">
+    <label for="category-filter" style="font-size: 0.85rem; color: var(--muted);">Filter:</label>
+    <select id="category-filter" onchange="loadNextPuzzle(0)">
+      <option value="ALL">All Tactical Positions</option>
+      <option value="My Missed Punishment">My Missed Punishments</option>
+      <option value="My Missed Win">My Missed Wins</option>
+      <option value="My Blunder">My Blunders</option>
+      <option value="Opponent Missed Win">Opponent Missed Wins Against Me</option>
+      <option value="Lichess Training">Lichess Training Puzzles</option>
+    </select>
+    <button class="btn btn-secondary" onclick="skipPuzzle()">Skip ⏭</button>
+    <button class="btn btn-secondary" onclick="triggerSeed()" title="Pull Lichess motif puzzles now">🌱 Seed Motifs</button>
+  </div>
+
+  <!-- ── Puzzle Header ── -->
+  <div class="header">
+    <div class="badges">
+      <span id="cat-badge"      class="badge badge-category">Initializing</span>
+      <span id="motif-badge"    class="badge badge-motif">Standby</span>
+      <span id="mode-badge"     class="badge badge-sr" style="display:none;">SR Due</span>
+      <span id="move-counter"   class="badge" style="display:none; color:var(--green);"></span>
+    </div>
+    <h2 style="margin: 4px 0;" id="instruction">Loading Trainer...</h2>
+  </div>
+
+  <!-- ── Timer Row ── -->
+  <div class="timer-row">
+    <div>⏱ <span class="puzzle-timer" id="puzzle-timer">0.0s</span></div>
+    <div class="cycle-clock" id="cycle-clock" style="display:none;">🔄 Cycle: <span id="cycle-elapsed">0:00</span></div>
+  </div>
+
+  <!-- ── Chessboard ── -->
+  <div id="board"></div>
+
+  <!-- ── Progress Bar (WP mode) ── -->
+  <div class="progress-wrap" id="progress-wrap" style="display:none;">
+    <div class="progress-fill" id="progress-fill" style="width:0%"></div>
+  </div>
+
+  <!-- ── SR Info Strip ── -->
+  <div class="sr-info" id="sr-info"></div>
+
+  <!-- ── Feedback Panel ── -->
+  <div class="feedback-panel">
+    <div id="feedback"></div>
+    <div class="action-buttons">
+      <button id="reveal-btn" class="btn btn-secondary" style="display:none;" onclick="revealSolution()">Reveal Solution</button>
+      <button id="next-btn"   class="btn btn-primary"   style="display:none;" onclick="nextPuzzle()">Next Puzzle →</button>
+    </div>
+  </div>
+
+  <div class="meta-footer" id="game-info"></div>
+
+  <!-- ── Scripts ── -->
+  <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+  <script src="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+  <script>
+    // ═══════════════════════════════════════════
+    //  STATE
+    // ═══════════════════════════════════════════
+    let currentPuzzle   = null;
+    let game            = null;
+    let puzzleSolved    = false;
+    let firstTry        = true;   // was every move in this line a first-try correct?
+
+    // Multi-move line state
+    let puzzleLine      = [];     // ["e2e4","e7e5","d1h5",...] alternating user/opp UCI moves
+    let lineIndex       = 0;      // always points to the NEXT expected user move index
+
+    let currentMode     = 'sr';   // 'sr' | 'wp'
+
+    // WP state
+    let wpSets          = [];
+    let activeSetId     = null;
+    let wpCycleStartMs  = null;
+
+    // Timers
+    let puzzleStartMs   = null;
+    let puzzleTimerRaf  = null;
+    let cycleTimerRaf   = null;
+
+    // Initial board
+    let board = Chessboard('board', {
+      position: 'start',
+      draggable: false,
+      pieceTheme: 'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png'
+    });
+
+    // ═══════════════════════════════════════════
+    //  TIMERS
+    // ═══════════════════════════════════════════
+    function startPuzzleTimer() {
+      puzzleStartMs = performance.now();
+      if (puzzleTimerRaf) cancelAnimationFrame(puzzleTimerRaf);
+      function tick() {
+        const elapsed = (performance.now() - puzzleStartMs) / 1000;
+        document.getElementById('puzzle-timer').innerText = elapsed.toFixed(1) + 's';
+        if (!puzzleSolved) puzzleTimerRaf = requestAnimationFrame(tick);
+      }
+      requestAnimationFrame(tick);
+    }
+    function stopPuzzleTimer() {
+      if (puzzleTimerRaf) { cancelAnimationFrame(puzzleTimerRaf); puzzleTimerRaf = null; }
+    }
+    function puzzleElapsedMs() {
+      return puzzleStartMs ? Math.round(performance.now() - puzzleStartMs) : 0;
+    }
+    function startCycleTimer() {
+      if (!wpCycleStartMs) wpCycleStartMs = performance.now();
+      document.getElementById('cycle-clock').style.display = '';
+      if (cycleTimerRaf) cancelAnimationFrame(cycleTimerRaf);
+      function tick() {
+        const sec = Math.floor((performance.now() - wpCycleStartMs) / 1000);
+        const m = Math.floor(sec / 60), s = sec % 60;
+        document.getElementById('cycle-elapsed').innerText = m + ':' + String(s).padStart(2,'0');
+        cycleTimerRaf = requestAnimationFrame(tick);
+      }
+      requestAnimationFrame(tick);
+    }
+    function stopCycleTimer() {
+      if (cycleTimerRaf) { cancelAnimationFrame(cycleTimerRaf); cycleTimerRaf = null; }
+      document.getElementById('cycle-clock').style.display = 'none';
+    }
+
+    // ═══════════════════════════════════════════
+    //  MODE SWITCHER
+    // ═══════════════════════════════════════════
+    function setMode(mode) {
+      currentMode = mode;
+      document.getElementById('btn-mode-sr').classList.toggle('active', mode === 'sr');
+      document.getElementById('btn-mode-wp').classList.toggle('active', mode === 'wp');
+      document.getElementById('wp-panel').style.display       = mode === 'wp' ? '' : 'none';
+      document.getElementById('mode-badge').style.display     = mode === 'sr' ? '' : 'none';
+      document.getElementById('progress-wrap').style.display  = mode === 'wp' ? '' : 'none';
+      document.getElementById('cycle-clock').style.display    = mode === 'wp' ? '' : 'none';
+      if (mode === 'wp') { loadWPSets(); stopCycleTimer(); }
+      else               { stopCycleTimer(); loadNextPuzzle(0); }
+    }
+
+    // ═══════════════════════════════════════════
+    //  STATS
+    // ═══════════════════════════════════════════
+    async function refreshStats() {
+      try {
+        const s = await fetch('/api/stats').then(r => r.json());
+        document.getElementById('stat-daemon').innerText    = s.daemon_state;
+        document.getElementById('stat-last-game').innerText = s.last_game;
+        document.getElementById('stat-games').innerText     = s.games_analyzed;
+        document.getElementById('stat-puzzles').innerText   = s.unsolved_puzzles + ' / ' + s.total_puzzles;
+        document.getElementById('stat-due').innerText       = s.due_puzzles != null ? s.due_puzzles : '—';
+        if (!currentPuzzle && s.total_puzzles > 0 && currentMode === 'sr') loadNextPuzzle(0);
+      } catch(e) {}
+    }
+
+    // ═══════════════════════════════════════════
+    //  PUZZLE LOADING (SR mode)
+    // ═══════════════════════════════════════════
+    async function loadNextPuzzle(skipId) {
+      if (skipId === undefined) skipId = 0;
+      if (currentMode === 'wp') { loadWPNextPuzzle(); return; }
+      puzzleSolved = false; firstTry = true;
+      document.getElementById('feedback').innerText        = '';
+      document.getElementById('next-btn').style.display    = 'none';
+      document.getElementById('reveal-btn').style.display  = 'none';
+      document.getElementById('sr-info').innerText         = '';
+      document.getElementById('move-counter').style.display = 'none';
+
+      const cat = document.getElementById('category-filter').value;
+      const data = await fetch('/api/puzzle/next?category=' + encodeURIComponent(cat) + '&skip_id=' + skipId + '&mode=sr').then(r => r.json());
+      if (!data.has_puzzles) {
+        currentPuzzle = null;
+        document.getElementById('cat-badge').innerText    = 'Scanning Games';
+        document.getElementById('motif-badge').innerText  = 'Stockfish Running';
+        document.getElementById('instruction').innerText  = 'Waiting for Stockfish to flag the first tactic...';
+        document.getElementById('feedback').innerText     = 'Board will load automatically once a blunder is found.';
+        document.getElementById('feedback').style.color   = '#a1a1aa';
+        return;
+      }
+      renderPuzzle(data);
+    }
+
+    // ═══════════════════════════════════════════
+    //  RENDER PUZZLE (shared SR + WP)
+    // ═══════════════════════════════════════════
+    function renderPuzzle(data) {
+      currentPuzzle = data;
+      puzzleSolved  = false;
+      firstTry      = true;
+
+      // Build line: server returns parsed array; fall back to single move
+      puzzleLine = (Array.isArray(data.puzzle_line) && data.puzzle_line.length)
+        ? data.puzzle_line : [data.best_move_uci];
+      lineIndex = 0;
+
+      game = new Chess(data.fen);
+
+      // Move-counter badge
+      const userMoveCount = Math.ceil(puzzleLine.length / 2);
+      const counterEl = document.getElementById('move-counter');
+      if (userMoveCount > 1) {
+        counterEl.innerText       = userMoveCount + '-move combination';
+        counterEl.style.display   = '';
+      } else {
+        counterEl.style.display   = 'none';
+      }
+
+      document.getElementById('cat-badge').innerText   = data.category;
+      document.getElementById('motif-badge').innerText = (data.motif || '—') + ' (-' + (data.eval_drop != null ? data.eval_drop : '?') + ' cp)';
+      document.getElementById('mode-badge').innerText  = currentMode === 'sr' ? 'SR Due' : 'Woodpecker';
+
+      const playedStr = (data.played_move_san && data.played_move_san !== '—')
+        ? ' — In the game, ' + data.played_move_san + ' was played.' : '.';
+      document.getElementById('instruction').innerText = data.turn + ' to Move' + playedStr;
+
+      const linkHtml = (data.game_url || '').startsWith('http')
+        ? '<a href="' + data.game_url + '" target="_blank">' + data.platform + ' Game</a>'
+        : (data.platform || '—') + ' Game';
+      document.getElementById('game-info').innerHTML =
+        'Source: ' + linkHtml + (data.ply ? ' | Ply ' + data.ply : '') + ' | Solved ' + (data.solved_count != null ? data.solved_count : 0) + 'x';
+
+      if (currentMode === 'sr' && data.interval_days !== undefined) {
+        const nr = data.next_review ? new Date(data.next_review + 'Z').toLocaleDateString() : 'now';
+        document.getElementById('sr-info').innerHTML =
+          'EF: <span>' + (data.ease_factor != null ? data.ease_factor.toFixed(2) : '2.50') + '</span> &nbsp;|&nbsp; ' +
+          'Interval: <span>' + (data.interval_days != null ? data.interval_days.toFixed(1) : '0.0') + 'd</span> &nbsp;|&nbsp; ' +
+          'Next review: <span>' + nr + '</span>';
+      } else {
+        document.getElementById('sr-info').innerText = '';
+      }
+
+      if (board) board.destroy();
+      board = Chessboard('board', {
+        position:    data.fen,
+        draggable:   true,
+        orientation: data.turn.toLowerCase(),
+        pieceTheme:  'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png',
+        onDragStart: onDragStart,
+        onDrop:      onDrop,
+        onSnapEnd:   onSnapEnd,
+      });
+
+      startPuzzleTimer();
+    }
+
+    // ═══════════════════════════════════════════
+    //  DRAG & DROP — multi-move aware
+    // ═══════════════════════════════════════════
+    function onDragStart(source, piece) {
+      if (puzzleSolved || !game || game.game_over()) return false;
+      if ((game.turn() === 'w' && piece.search(/^b/) !== -1) ||
+          (game.turn() === 'b' && piece.search(/^w/) !== -1)) return false;
+    }
+
+    function onDrop(source, target) {
+      const move = game.move({ from: source, to: target, promotion: 'q' });
+      if (move === null) return 'snapback';
+
+      const uciMove     = source + target + (move.promotion || '');
+      const expectedUci = puzzleLine[lineIndex];
+      const isCorrect   = (uciMove === expectedUci);
+
+      if (isCorrect) {
+        lineIndex++;  // consume the user's move
+
+        if (lineIndex >= puzzleLine.length) {
+          // No opponent reply left — puzzle done (e.g. checkmate)
+          finishPuzzle();
+          return;
+        }
+
+        // Opponent has a forced reply — play it after a short pause
+        const oppUci         = puzzleLine[lineIndex];
+        const totalUserMoves = Math.ceil(puzzleLine.length / 2);
+        const doneUserMoves  = Math.floor(lineIndex / 2);  // moves completed
+
+        if (doneUserMoves >= totalUserMoves) {
+          // Last user move just played; show the cosmetic opp reply then finish
+          document.getElementById('feedback').innerText = '✓ Good!';
+          document.getElementById('feedback').style.color = 'var(--green)';
+          setTimeout(function() {
+            autoPlayOpponent(oppUci);
+            lineIndex++;
+            finishPuzzle();
+          }, 550);
+        } else {
+          // More user moves coming
+          document.getElementById('feedback').innerText = '✓ Good! Find the continuation...';
+          document.getElementById('feedback').style.color = 'var(--accent)';
+          setTimeout(function() {
+            autoPlayOpponent(oppUci);
+            lineIndex++;
+            const nextUserNum = Math.floor(lineIndex / 2) + 1;
+            document.getElementById('instruction').innerText =
+              'Move ' + nextUserNum + ' of ' + totalUserMoves + ' — keep going!';
+          }, 550);
+        }
+
+      } else {
+        firstTry = false;
+        document.getElementById('feedback').innerText = '✗ ' + move.san + ' — try again!';
+        document.getElementById('feedback').style.color = 'var(--red)';
+        document.getElementById('reveal-btn').style.display = 'inline-block';
+        game.undo();
+        return 'snapback';
+      }
+    }
+
+    function autoPlayOpponent(uci) {
+      try {
+        const m = game.move({ from: uci.slice(0,2), to: uci.slice(2,4), promotion: uci[4] || undefined });
+        if (m) board.position(game.fen());
+      } catch(e) {}
+    }
+
+    function onSnapEnd() { board.position(game.fen()); }
+
+    // ── Puzzle line exhausted — record result ──
+    function finishPuzzle() {
+      puzzleSolved = true;
+      stopPuzzleTimer();
+      const elapsed       = puzzleElapsedMs();
+      const wasFirstTry   = firstTry;
+      const userMoveCount = Math.ceil(puzzleLine.length / 2);
+
+      const label = userMoveCount > 1
+        ? '✓ ' + userMoveCount + '-move combination solved!'
+        : '✓ Correct! ' + currentPuzzle.best_move_san + ' is the Stockfish solution.';
+      document.getElementById('feedback').innerText = label;
+      document.getElementById('feedback').style.color = 'var(--green)';
+      document.getElementById('reveal-btn').style.display = 'none';
+      document.getElementById('next-btn').style.display   = 'inline-block';
+
+      if (currentMode === 'sr') {
+        fetch('/api/puzzle/' + currentPuzzle.id + '/attempt', {
+          method: 'POST', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ correct_first_try: wasFirstTry, time_ms: elapsed }),
+        }).then(function(r){ return r.json(); }).then(function(d) {
+          if (d.interval_days !== undefined) {
+            document.getElementById('sr-info').innerHTML =
+              'Next review in <span>' + d.interval_days.toFixed(1) + 'd</span> &nbsp;|&nbsp; EF: <span>' + d.ease_factor.toFixed(2) + '</span>';
+          }
+          refreshStats();
+        });
+      } else if (currentMode === 'wp' && activeSetId) {
+        fetch('/api/woodpecker/attempt', {
+          method: 'POST', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ set_id: activeSetId, correct_first_try: wasFirstTry, time_ms: elapsed }),
+        }).then(function(r){ return r.json(); }).then(function(d) {
+          if (d.cycle_complete) showCycleComplete(); else refreshWPStatus();
+        });
+      }
+    }
+
+    // ═══════════════════════════════════════════
+    //  REVEAL — plays the full remaining line
+    // ═══════════════════════════════════════════
+    function revealSolution() {
+      if (!currentPuzzle) return;
+      for (let i = lineIndex; i < puzzleLine.length; i++) {
+        const uci = puzzleLine[i];
+        try { game.move({ from: uci.slice(0,2), to: uci.slice(2,4), promotion: uci[4] || undefined }); }
+        catch(e) {}
+      }
+      board.position(game.fen());
+      lineIndex = puzzleLine.length;
+
+      puzzleSolved = true;
+      stopPuzzleTimer();
+
+      // Show the user-moves from the line (even indices) as SAN or UCI
+      const userUcis = puzzleLine.filter(function(_,i){ return i%2===0; });
+      const label = 'Solution: ' + userUcis.join(', ') + ' (' + (currentPuzzle.motif || '—') + ')';
+      document.getElementById('feedback').innerText = label;
+      document.getElementById('feedback').style.color = 'var(--amber)';
+      document.getElementById('reveal-btn').style.display = 'none';
+      document.getElementById('next-btn').style.display   = 'inline-block';
+
+      const elapsed = puzzleElapsedMs();
+      if (currentMode === 'sr' && currentPuzzle.id) {
+        fetch('/api/puzzle/' + currentPuzzle.id + '/attempt', {
+          method: 'POST', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ correct_first_try: false, time_ms: elapsed }),
+        }).then(function(){ refreshStats(); });
+      } else if (currentMode === 'wp' && activeSetId) {
+        fetch('/api/woodpecker/attempt', {
+          method: 'POST', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ set_id: activeSetId, correct_first_try: false, time_ms: elapsed }),
+        }).then(function(r){ return r.json(); }).then(function(d) {
+          if (d.cycle_complete) showCycleComplete(); else refreshWPStatus();
+        });
+      }
+    }
+
+    // ═══════════════════════════════════════════
+    //  SKIP / NEXT
+    // ═══════════════════════════════════════════
+    function skipPuzzle() {
+      if (currentMode === 'wp') {
+        revealSolution();
+        setTimeout(function(){ nextPuzzle(); }, 1400);
+        return;
+      }
+      loadNextPuzzle(currentPuzzle ? currentPuzzle.id : 0);
+    }
+
+    function nextPuzzle() {
+      if (currentMode === 'wp') loadWPNextPuzzle();
+      else loadNextPuzzle(currentPuzzle ? currentPuzzle.id : 0);
+    }
+
+    // ═══════════════════════════════════════════
+    //  WOODPECKER MODE
+    // ═══════════════════════════════════════════
+    async function loadWPSets() {
+      try { wpSets = await fetch('/api/woodpecker/list').then(r => r.json()); renderWPSets(); }
+      catch(e) {}
+    }
+
+    function renderWPSets() {
+      const el = document.getElementById('wp-sets-list');
+      if (!wpSets.length) {
+        el.innerHTML = '<div style="color:var(--muted);font-size:0.82rem;padding:6px 0;">No sets yet — create one above.</div>';
+        return;
+      }
+      el.innerHTML = wpSets.map(function(s) {
+        return '<div class="wp-set-item ' + (s.id === activeSetId ? 'selected' : '') + '" onclick="selectWPSet(' + s.id + ')">' +
+          '<span style="color:var(--purple);">▶</span>' +
+          '<span><strong>' + escapeHtml(s.name) + '</strong> — ' + s.puzzle_count + ' puzzles, Cycle ' + s.cycle + '</span>' +
+          '</div>';
+      }).join('');
+    }
+
+    async function selectWPSet(id) {
+      activeSetId    = id;
+      wpCycleStartMs = null;
+      renderWPSets();
+      await refreshWPStatus();
+      startCycleTimer();
+      loadWPNextPuzzle();
+    }
+
+    async function refreshWPStatus() {
+      if (!activeSetId) return;
+      try {
+        const s = await fetch('/api/woodpecker/' + activeSetId + '/status').then(r => r.json());
+        document.getElementById('wp-stats-row').style.display = '';
+        document.getElementById('wp-cycle').innerText         = s.cycle_number;
+        document.getElementById('wp-remaining').innerText     = s.remaining;
+        document.getElementById('wp-accuracy').innerText      = s.accuracy_pct + '%';
+        const sec = Math.floor((s.total_time_ms || 0) / 1000);
+        document.getElementById('wp-cycle-time').innerText    = Math.floor(sec/60) + ':' + String(sec%60).padStart(2,'0');
+        const pct = s.total_puzzles > 0 ? (s.answered / s.total_puzzles * 100) : 0;
+        document.getElementById('progress-fill').style.width  = pct + '%';
+      } catch(e) {}
+    }
+
+    async function loadWPNextPuzzle() {
+      if (!activeSetId) {
+        document.getElementById('instruction').innerText = 'Select or create a Woodpecker Set above.';
+        return;
+      }
+      puzzleSolved = false; firstTry = true;
+      document.getElementById('feedback').innerText        = '';
+      document.getElementById('next-btn').style.display    = 'none';
+      document.getElementById('reveal-btn').style.display  = 'none';
+
+      const data = await fetch('/api/woodpecker/' + activeSetId + '/next').then(r => r.json());
+      if (!data.has_puzzles) { showCycleComplete(); return; }
+      renderPuzzle(data);
+      if (!wpCycleStartMs) startCycleTimer();
+    }
+
+    function showCycleComplete() {
+      stopCycleTimer();
+      document.getElementById('cat-badge').innerText        = '🏁 Cycle Complete!';
+      document.getElementById('motif-badge').innerText      = 'Well done';
+      document.getElementById('move-counter').style.display = 'none';
+      document.getElementById('instruction').innerText      = 'Cycle complete! A new cycle has started automatically.';
+      document.getElementById('feedback').innerText         = 'All puzzles answered. Click Next to begin the next cycle.';
+      document.getElementById('feedback').style.color       = 'var(--green)';
+      document.getElementById('next-btn').style.display     = 'inline-block';
+      if (board) board.destroy();
+      board = Chessboard('board', { position: 'start', draggable: false,
+        pieceTheme: 'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png' });
+      refreshWPStatus();
+      wpCycleStartMs = null;
+    }
+
+    async function createWoodpeckerSet() {
+      const name = document.getElementById('wp-name').value.trim() || 'My Woodpecker Set';
+      const size = parseInt(document.getElementById('wp-size').value) || 200;
+      try {
+        const res = await fetch('/api/woodpecker/create', {
+          method: 'POST', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ name: name, size: size }),
+        }).then(r => r.json());
+        if (res.error) { alert(res.error); return; }
+        await loadWPSets();
+        selectWPSet(res.set_id);
+      } catch(e) { alert('Error: ' + e); }
+    }
+
+    // ═══════════════════════════════════════════
+    //  LICHESS SEED TRIGGER
+    // ═══════════════════════════════════════════
+    async function triggerSeed() {
+      try {
+        await fetch('/api/seed/lichess', { method: 'POST' });
+        alert('Lichess motif seeding started in the background. Check back in ~1 minute.');
+      } catch(e) { alert('Error: ' + e); }
+    }
+
+    // ═══════════════════════════════════════════
+    //  UTILITIES
+    // ═══════════════════════════════════════════
+    function escapeHtml(s) {
+      return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    // ═══════════════════════════════════════════
+    //  KEYBOARD SHORTCUTS
+    // ═══════════════════════════════════════════
+    document.addEventListener('keydown', function(e) {
+      if (e.target.tagName === 'INPUT') return;
+      if (e.key === 'ArrowRight' || e.key === 'n') nextPuzzle();
+      if (e.key === 'r')                            revealSolution();
+      if (e.key === 's')                            skipPuzzle();
+      if (e.key === '1')                            setMode('sr');
+      if (e.key === '2')                            setMode('wp');
+    });
+
+    // ═══════════════════════════════════════════
+    //  BOOT
+    // ═══════════════════════════════════════════
+    setInterval(refreshStats, 3000);
+    refreshStats();
+    loadNextPuzzle(0);
+</script>
+</body>
+</html>
