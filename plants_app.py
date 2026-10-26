@@ -595,24 +595,18 @@ app.include_router(plants_router)
 @app.get("/healthz")
 @app.get("/health")
 def healthcheck():
-    raw_env = os.getenv("DATABASE_URL")
+    raw_env = os.getenv("DATABASE_URL") or ""
+    # Safe inspect of first 30 chars
+    env_preview = raw_env[:30] if raw_env else "NOT_SET"
     db_type = "postgresql" if "postgres" in str(engine.url) else "sqlite_ephemeral"
-    # Mask password for security
-    masked_url = None
-    if raw_env:
-        masked_url = str(engine.url)
-        if "@" in masked_url and ":" in masked_url:
-            parts = masked_url.split("@")
-            prefix = parts[0].split("://")[0]
-            masked_url = f"{prefix}://****@{parts[1]}"
             
     return {
         "status": "ok",
         "app": "Tmimer's Plants",
         "database_type": db_type,
         "database_url_configured": bool(raw_env),
-        "active_engine_url": masked_url or "sqlite_local",
-        "db_error": db_connection_error
+        "database_url_prefix": env_preview,
+        "active_engine_url": str(engine.url)
     }
 
 
