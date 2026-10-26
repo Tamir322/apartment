@@ -1,5 +1,6 @@
 import os
 import datetime
+from contextlib import asynccontextmanager
 from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, Query, FastAPI
 from fastapi.responses import FileResponse, JSONResponse
@@ -606,13 +607,14 @@ def delete_watering_log(log_id: int, db: Session = Depends(get_db)):
 
 # ===================== STANDALONE APP INSTANCE =====================
 # Allows running plants_app independently if desired (e.g. for Render or standalone deployment)
-app = FastAPI(title="Plant Watering & Consumption Velocity Tracker")
-app.include_router(plants_router)
-
-
-@app.on_event("startup")
-def on_startup():
+@asynccontextmanager
+async def plant_lifespan(app: FastAPI):
     init_plant_db()
+    yield
+
+
+app = FastAPI(title="Plant Watering & Consumption Velocity Tracker", lifespan=plant_lifespan)
+app.include_router(plants_router)
 
 
 @app.get("/")
