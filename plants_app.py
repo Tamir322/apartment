@@ -119,13 +119,16 @@ def recompute_plant_intervals(plant_id: int, db: Session):
     db.commit()
 
 
+db_connection_error = None
+
 def init_plant_db():
     """Initializes tables and optionally seeds starter plants with crash-proof fallback."""
-    global engine, SessionLocal
+    global engine, SessionLocal, db_connection_error
     try:
         Base.metadata.create_all(bind=engine)
         print("[+] Primary database tables initialized successfully")
     except Exception as e:
+        db_connection_error = str(e)
         print(f"[!] Warning: Database connection failed ({e}).")
         print("[!] Falling back to local SQLite so the server stays alive...")
         # Fallback to local SQLite so server never crash loops
@@ -608,7 +611,8 @@ def healthcheck():
         "app": "Tmimer's Plants",
         "database_type": db_type,
         "database_url_configured": bool(raw_env),
-        "active_engine_url": masked_url or "sqlite_local"
+        "active_engine_url": masked_url or "sqlite_local",
+        "db_error": db_connection_error
     }
 
 
