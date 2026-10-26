@@ -18,9 +18,11 @@ def get_configured_engine(raw_url: Optional[str] = None):
     url = (raw_url or os.getenv("DATABASE_URL") or "").strip()
     if url:
         if url.startswith("postgres://"):
-            url = url.replace("postgres://", "postgresql://", 1)
+            url = url.replace("postgres://", "postgresql+psycopg2://", 1)
+        elif url.startswith("postgresql://") and not url.startswith("postgresql+"):
+            url = url.replace("postgresql://", "postgresql+psycopg2://", 1)
         try:
-            connect_args = {"connect_timeout": 8} if "postgresql" in url else {}
+            connect_args = {"connect_timeout": 10} if "postgresql" in url else {}
             eng = create_engine(url, pool_pre_ping=True, connect_args=connect_args)
             return eng
         except Exception as e:
