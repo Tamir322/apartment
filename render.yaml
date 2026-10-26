@@ -1,5 +1,11 @@
+databases:
+  - name: plant-db
+    databaseName: plants
+    user: plantuser
+    plan: free
+    region: oregon
+
 services:
-  # Standalone Plant Tracker Web Service (Deployable to Render with Supabase PostgreSQL)
   - type: web
     name: plant-watering-tracker
     env: python
@@ -11,4 +17,6 @@ services:
       - key: PYTHON_VERSION
         value: 3.11.0
       - key: DATABASE_URL
-        sync: false # Set in Render Dashboard: your Supabase PostgreSQL connection string (postgresql://postgres:[password]@db.[project-ref].supabase.co:5432/postgres)
+        fromDatabase:
+          name: plant-db
+          property: connectionString
