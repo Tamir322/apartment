@@ -6,6 +6,11 @@
   <meta name="theme-color" content="#0b0f19">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="PlantTracker">
+  <meta name="mobile-web-app-capable" content="yes">
+  <link rel="manifest" href="/plants/manifest.json">
+  <link rel="apple-touch-icon" href="/plants/icon-192.png">
+  <link rel="icon" type="image/png" href="/plants/icon-192.png">
   <title>🌿 Plant Watering & Consumption Velocity Tracker</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -56,6 +61,23 @@
       align-items: center;
       padding-bottom: 60px;
     }
+
+    .btn-install-app {
+      background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+      color: #042f2e;
+      border: none;
+      padding: 5px 11px;
+      border-radius: var(--radius-full);
+      font-size: 0.75rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      box-shadow: 0 2px 8px var(--emerald-glow);
+      transition: transform 0.15s;
+    }
+    .btn-install-app:active { transform: scale(0.96); }
 
     /* ── HUB NAV BAR ── */
     .hub-header {
@@ -940,13 +962,16 @@
   <!-- ── HUB NAVIGATION BAR ── -->
   <header class="hub-header">
     <div class="hub-brand">
-      <span class="icon">🏠</span>
+      <img src="/plants/icon-192.png" style="width:24px; height:24px; border-radius:6px;" alt="Logo">
       <span class="title">Apartment Hub</span>
     </div>
-    <nav class="hub-nav">
-      <a href="/chess"><span class="icon">♟️</span> Chess</a>
-      <a href="/plants" class="active"><span class="icon">🌿</span> Plants</a>
-    </nav>
+    <div style="display:flex; align-items:center; gap:8px;">
+      <button id="btn-install-pwa" class="btn-install-app" onclick="triggerPWAInstall()">📲 Install App</button>
+      <nav class="hub-nav">
+        <a href="/chess"><span class="icon">♟️</span> Chess</a>
+        <a href="/plants" class="active"><span class="icon">🌿</span> Plants</a>
+      </nav>
+    </div>
   </header>
 
   <!-- ── MAIN CONTENT CONTAINER ── -->
@@ -1618,6 +1643,35 @@
         .replace(/>/g, "&gt;")
         .replace(/"/g, "&quot;")
         .replace(/'/g, "&#039;");
+    }
+
+    // ---------- PWA INSTALL & SERVICE WORKER ----------
+    let deferredPrompt = null;
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+      const btn = document.getElementById('btn-install-pwa');
+      if (btn) btn.style.display = 'inline-flex';
+    });
+
+    async function triggerPWAInstall() {
+      if (deferredPrompt) {
+        deferredPrompt.prompt();
+        const { outcome } = await deferredPrompt.userChoice;
+        if (outcome === 'accepted') {
+          const btn = document.getElementById('btn-install-pwa');
+          if (btn) btn.style.display = 'none';
+        }
+        deferredPrompt = null;
+      } else {
+        alert("📲 To install as a dedicated app on your phone:\n\n• iPhone (Safari): Tap the Share button at bottom, then scroll down and tap 'Add to Home Screen'.\n\n• Android (Chrome): Tap the 3 dots (⋮) in the top-right corner, then tap 'Install app' or 'Add to Home screen'.\n\nOnce added, it will launch like a real app with its own full-screen window and home screen icon!");
+      }
+    }
+
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/plants/sw.js').catch(err => console.log('SW reg error:', err));
+      });
     }
 
     // Auto-refresh every 60 seconds

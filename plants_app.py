@@ -367,6 +367,26 @@ def serve_plants_ui():
     return FileResponse(html_file)
 
 
+@plants_router.get("/manifest.json")
+def serve_manifest():
+    return FileResponse(os.path.join(BASE_DIR, "manifest.json"), media_type="application/manifest+json")
+
+
+@plants_router.get("/sw.js")
+def serve_sw():
+    return FileResponse(os.path.join(BASE_DIR, "sw.js"), media_type="application/javascript")
+
+
+@plants_router.get("/icon-192.png")
+def serve_icon_192():
+    return FileResponse(os.path.join(BASE_DIR, "icon-192.png"), media_type="image/png")
+
+
+@plants_router.get("/icon-512.png")
+def serve_icon_512():
+    return FileResponse(os.path.join(BASE_DIR, "icon-512.png"), media_type="image/png")
+
+
 @plants_router.get("/api/list")
 def list_plants(db: Session = Depends(get_db)):
     """Returns all plants with computed drinking velocity metrics and summary counts."""
