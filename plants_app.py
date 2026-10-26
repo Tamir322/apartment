@@ -12,24 +12,36 @@ from sqlalchemy.orm import declarative_base, sessionmaker, Session, relationship
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-# Database URL configuration (Supports Supabase / Render PostgreSQL and SQLite fallback)
-DATABASE_URL = os.getenv("DATABASE_URL")
-if DATABASE_URL:
-    if DATABASE_URL.startswith("postgres://"):
-        DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
-    engine = create_engine(DATABASE_URL, pool_pre_ping=True)
-else:
-    SQLITE_PATH = os.path.join(BASE_DIR, "plants_tracker.db")
-    DATABASE_URL = f"sqlite:///{SQLITE_PATH}"
-    engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 
-    @event.listens_for(engine, "connect")
+# ===================== DATABASE ENGINE FACTORY =====================
+def get_configured_engine(raw_url: Optional[str] = None):
+    url = (raw_url or os.getenv("DATABASE_URL") or "").strip()
+    if url:
+        if url.startswith("postgres://"):
+            url = url.replace("postgres://", "postgresql://", 1)
+        try:
+            connect_args = {"connect_timeout": 8} if "postgresql" in url else {}
+            eng = create_engine(url, pool_pre_ping=True, connect_args=connect_args)
+            return eng
+        except Exception as e:
+            print(f"[!] Failed to configure PostgreSQL engine: {e}")
+
+    # Fallback to local SQLite database
+    sqlite_path = os.path.join(BASE_DIR, "plants_tracker.db")
+    fallback_url = f"sqlite:///{sqlite_path}"
+    eng = create_engine(fallback_url, connect_args={"check_same_thread": False})
+
+    @event.listens_for(eng, "connect")
     def set_sqlite_pragma(dbapi_connection, connection_record):
         cursor = dbapi_connection.cursor()
         cursor.execute("PRAGMA journal_mode=WAL;")
         cursor.execute("PRAGMA synchronous=NORMAL;")
         cursor.close()
 
+    return eng
+
+
+engine = get_configured_engine()
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
@@ -95,10 +107,6 @@ def recompute_plant_intervals(plant_id: int, db: Session):
             diff_hours = (log.watered_at - prev_log.watered_at).total_seconds() / 3600.0
             log.raw_elapsed_hours = round(max(0.0, diff_hours), 2)
             
-            # State-adjusted interval multiplier:
-            # "damp" (watered early) -> * 1.20
-            # "ideal" (on target) -> * 1.00
-            # "bone_dry" (watered late / drooping) -> * 0.80
             state = (log.soil_state or "ideal").lower().strip()
             if state == "damp":
                 mult = 1.20
@@ -112,14 +120,26 @@ def recompute_plant_intervals(plant_id: int, db: Session):
 
 
 def init_plant_db():
-    """Initializes tables and optionally seeds starter plants if table is empty."""
-    Base.metadata.create_all(bind=engine)
+    """Initializes tables and optionally seeds starter plants with crash-proof fallback."""
+    global engine, SessionLocal
+    try:
+        Base.metadata.create_all(bind=engine)
+        print("[+] Primary database tables initialized successfully")
+    except Exception as e:
+        print(f"[!] Warning: Database connection failed ({e}).")
+        print("[!] Falling back to local SQLite so the server stays alive...")
+        # Fallback to local SQLite so server never crash loops
+        sqlite_path = os.path.join(BASE_DIR, "plants_tracker.db")
+        fallback_url = f"sqlite:///{sqlite_path}"
+        engine = create_engine(fallback_url, connect_args={"check_same_thread": False})
+        SessionLocal.configure(bind=engine)
+        Base.metadata.create_all(bind=engine)
+
     db = SessionLocal()
     try:
         count = db.query(Plant).count()
         if count == 0:
             now = datetime.datetime.utcnow()
-            # Seed starter plants with realistic historical waterings
             p1 = Plant(
                 name="Strawberries (Mother)",
                 species_or_type="Fragaria × ananassa",
@@ -150,49 +170,30 @@ def init_plant_db():
             db.add_all([p1, p2, p3])
             db.commit()
 
-            # Add sample logs for p1 showing drinking faster trend
-            # Log 1: 10 days ago (initial)
-            l1_time = now - datetime.timedelta(days=10)
-            l1 = WateringLog(plant_id=p1.id, watered_at=l1_time, soil_state="ideal")
-            # Log 2: 7 days ago (72h later)
-            l2_time = now - datetime.timedelta(days=7)
-            l2 = WateringLog(plant_id=p1.id, watered_at=l2_time, soil_state="ideal")
-            # Log 3: 4.5 days ago (60h later)
-            l3_time = now - datetime.timedelta(days=4, hours=12)
-            l3 = WateringLog(plant_id=p1.id, watered_at=l3_time, soil_state="ideal")
-            # Log 4: 2.5 days ago (48h later, damp)
-            l4_time = now - datetime.timedelta(days=2, hours=12)
-            l4 = WateringLog(plant_id=p1.id, watered_at=l4_time, soil_state="damp", notes="Developing lots of runners")
-            # Log 5: 18 hours ago (42h later, ideal)
-            l5_time = now - datetime.timedelta(hours=18)
-            l5 = WateringLog(plant_id=p1.id, watered_at=l5_time, soil_state="ideal", notes="Liquid kelp feed")
+            # Seed logs
+            l1 = WateringLog(plant_id=p1.id, watered_at=now - datetime.timedelta(days=10), soil_state="ideal")
+            l2 = WateringLog(plant_id=p1.id, watered_at=now - datetime.timedelta(days=7), soil_state="ideal")
+            l3 = WateringLog(plant_id=p1.id, watered_at=now - datetime.timedelta(days=4, hours=12), soil_state="ideal")
+            l4 = WateringLog(plant_id=p1.id, watered_at=now - datetime.timedelta(days=2, hours=12), soil_state="damp", notes="Lots of runners")
+            l5 = WateringLog(plant_id=p1.id, watered_at=now - datetime.timedelta(hours=18), soil_state="ideal", notes="Kelp feed")
 
-            # Logs for p2 (Monstera: long intervals)
-            m1_time = now - datetime.timedelta(days=22)
-            m1 = WateringLog(plant_id=p2.id, watered_at=m1_time, soil_state="ideal")
-            m2_time = now - datetime.timedelta(days=14)
-            m2 = WateringLog(plant_id=p2.id, watered_at=m2_time, soil_state="ideal")
-            m3_time = now - datetime.timedelta(days=6)
-            m3 = WateringLog(plant_id=p2.id, watered_at=m3_time, soil_state="damp", notes="Foliage wiped")
+            m1 = WateringLog(plant_id=p2.id, watered_at=now - datetime.timedelta(days=22), soil_state="ideal")
+            m2 = WateringLog(plant_id=p2.id, watered_at=now - datetime.timedelta(days=14), soil_state="ideal")
+            m3 = WateringLog(plant_id=p2.id, watered_at=now - datetime.timedelta(days=6), soil_state="damp")
 
-            # Logs for p3 (Coleus)
-            c1_time = now - datetime.timedelta(days=8)
-            c1 = WateringLog(plant_id=p3.id, watered_at=c1_time, soil_state="ideal")
-            c2_time = now - datetime.timedelta(days=5)
-            c2 = WateringLog(plant_id=p3.id, watered_at=c2_time, soil_state="ideal")
-            c3_time = now - datetime.timedelta(days=2)
-            c3 = WateringLog(plant_id=p3.id, watered_at=c3_time, soil_state="bone_dry", notes="Roots poking out of drainage")
+            c1 = WateringLog(plant_id=p3.id, watered_at=now - datetime.timedelta(days=8), soil_state="ideal")
+            c2 = WateringLog(plant_id=p3.id, watered_at=now - datetime.timedelta(days=5), soil_state="ideal")
+            c3 = WateringLog(plant_id=p3.id, watered_at=now - datetime.timedelta(days=2), soil_state="bone_dry")
 
             db.add_all([l1, l2, l3, l4, l5, m1, m2, m3, c1, c2, c3])
             db.commit()
 
-            # Recalculate intervals for seeded plants
             recompute_plant_intervals(p1.id, db)
             recompute_plant_intervals(p2.id, db)
             recompute_plant_intervals(p3.id, db)
-            print("[+] Seeded initial plant tracker data successfully")
+            print("[+] Seeded initial starter plants successfully")
     except Exception as e:
-        print(f"[!] Error in init_plant_db: {e}")
+        print(f"[!] Warning during starter seed: {e}")
         db.rollback()
     finally:
         db.close()
@@ -203,21 +204,18 @@ def calculate_plant_metrics(plant: Plant, now: Optional[datetime.datetime] = Non
     if now is None:
         now = datetime.datetime.utcnow()
 
-    # Filter non-null effective intervals
     intervals = [
         l.effective_interval_hours
         for l in plant.watering_logs
         if l.effective_interval_hours is not None and l.effective_interval_hours > 0
     ]
 
-    # Baseline interval: Average of up to last 10 effective intervals
     if not intervals:
         baseline_interval_hours = float(plant.initial_interval_hours or 72.0)
     else:
         last_10 = intervals[-10:]
         baseline_interval_hours = round(sum(last_10) / len(last_10), 2)
 
-    # Recent interval: Weighted average of last 3 (50%, 30%, 20%)
     if len(intervals) >= 3:
         recent_interval_hours = round(
             0.50 * intervals[-1] + 0.30 * intervals[-2] + 0.20 * intervals[-3],
@@ -233,14 +231,12 @@ def calculate_plant_metrics(plant: Plant, now: Optional[datetime.datetime] = Non
     else:
         recent_interval_hours = None
 
-    # Drinking speed delta %: ((baseline - recent) / baseline) * 100 if >= 3 intervals
     if len(intervals) >= 3 and baseline_interval_hours > 0 and recent_interval_hours is not None:
         delta = ((baseline_interval_hours - recent_interval_hours) / baseline_interval_hours) * 100.0
         drinking_speed_delta_pct = round(delta, 1)
     else:
         drinking_speed_delta_pct = 0.0
 
-    # Trend badge
     if drinking_speed_delta_pct >= 15.0:
         trend_badge = f"▲ Drinking {int(round(drinking_speed_delta_pct))}% Faster"
         trend_class = "faster"
@@ -251,13 +247,11 @@ def calculate_plant_metrics(plant: Plant, now: Optional[datetime.datetime] = Non
         trend_badge = "Steady Pace"
         trend_class = "steady"
 
-    # Predicted interval
     predicted_interval_hours = (
         recent_interval_hours if recent_interval_hours is not None else baseline_interval_hours
     )
     predicted_interval_hours = max(1.0, predicted_interval_hours)
 
-    # Reference last watered timestamp
     if plant.watering_logs:
         last_log = plant.watering_logs[-1]
         last_watered_at = last_log.watered_at
@@ -270,7 +264,6 @@ def calculate_plant_metrics(plant: Plant, now: Optional[datetime.datetime] = Non
     hours_remaining = round((next_due_at - now).total_seconds() / 3600.0, 1)
     hours_since_watered = round(max(0.0, (now - last_watered_at).total_seconds() / 3600.0), 1)
 
-    # Urgency status
     if hours_remaining <= 0:
         urgency_status = "OVERDUE"
     elif hours_remaining <= 18:
@@ -278,7 +271,6 @@ def calculate_plant_metrics(plant: Plant, now: Optional[datetime.datetime] = Non
     else:
         urgency_status = "GOOD"
 
-    # Visual dry-down % (0% = just watered, 100% = fully dry/due)
     if predicted_interval_hours > 0:
         dry_down_pct = min(100.0, max(0.0, round((hours_since_watered / predicted_interval_hours) * 100.0, 1)))
     else:
@@ -396,20 +388,13 @@ def list_plants(db: Session = Depends(get_db)):
 
     plant_items = [calculate_plant_metrics(p, now=now) for p in plants]
 
-    # Automatic Urgency Grouping & Sorting:
-    # 1. OVERDUE (order 0)
-    # 2. DUE_TODAY (order 1)
-    # 3. GOOD (order 2)
-    # Sub-sorted by hours_remaining ASC
     urgency_ranks = {"OVERDUE": 0, "DUE_TODAY": 1, "GOOD": 2}
     plant_items.sort(key=lambda x: (urgency_ranks.get(x["urgency_status"], 3), x["hours_remaining"]))
 
-    # Summary counts
     overdue_count = sum(1 for p in plant_items if p["urgency_status"] == "OVERDUE")
     due_today_count = sum(1 for p in plant_items if p["urgency_status"] == "DUE_TODAY")
     good_count = sum(1 for p in plant_items if p["urgency_status"] == "GOOD")
 
-    # Distinct locations
     default_locations = ["All", "Apartment", "Terrace / Home", "Grow Light Zone"]
     db_locations = [p.location_group for p in plants if p.location_group]
     all_locations = ["All"]
@@ -434,7 +419,6 @@ def list_plants(db: Session = Depends(get_db)):
 
 @plants_router.post("/api/plants")
 def create_plant(payload: PlantCreate, db: Session = Depends(get_db)):
-    """Creates a new plant record."""
     plant = Plant(
         name=payload.name.strip(),
         species_or_type=payload.species_or_type.strip() if payload.species_or_type else None,
@@ -452,7 +436,6 @@ def create_plant(payload: PlantCreate, db: Session = Depends(get_db)):
 
 @plants_router.get("/api/plants/{plant_id}")
 def get_plant_details(plant_id: int, db: Session = Depends(get_db)):
-    """Returns detailed plant information, complete log history, and interval trends."""
     plant = db.query(Plant).filter(Plant.id == plant_id).first()
     if not plant:
         raise HTTPException(status_code=404, detail="Plant not found")
@@ -460,7 +443,7 @@ def get_plant_details(plant_id: int, db: Session = Depends(get_db)):
     metrics = calculate_plant_metrics(plant)
 
     logs_data = []
-    for log in reversed(plant.watering_logs):  # newest first
+    for log in reversed(plant.watering_logs):
         logs_data.append({
             "id": log.id,
             "watered_at": log.watered_at.isoformat() if log.watered_at else None,
@@ -472,7 +455,6 @@ def get_plant_details(plant_id: int, db: Session = Depends(get_db)):
             "notes": log.notes
         })
 
-    # Sparkline chart points (chronological order of effective intervals)
     chart_points = [
         {
             "id": log.id,
@@ -494,7 +476,6 @@ def get_plant_details(plant_id: int, db: Session = Depends(get_db)):
 
 @plants_router.patch("/api/plants/{plant_id}")
 def update_plant(plant_id: int, payload: PlantUpdate, db: Session = Depends(get_db)):
-    """Updates plant details (e.g., quick-tap growth stage update)."""
     plant = db.query(Plant).filter(Plant.id == plant_id).first()
     if not plant:
         raise HTTPException(status_code=404, detail="Plant not found")
@@ -519,7 +500,6 @@ def update_plant(plant_id: int, payload: PlantUpdate, db: Session = Depends(get_
 
 @plants_router.delete("/api/plants/{plant_id}")
 def delete_plant(plant_id: int, db: Session = Depends(get_db)):
-    """Deletes a plant and all its associated logs."""
     plant = db.query(Plant).filter(Plant.id == plant_id).first()
     if not plant:
         raise HTTPException(status_code=404, detail="Plant not found")
@@ -530,10 +510,6 @@ def delete_plant(plant_id: int, db: Session = Depends(get_db)):
 
 @plants_router.post("/api/water/{plant_id}")
 def water_plant(plant_id: int, payload: WaterLogCreate, db: Session = Depends(get_db)):
-    """
-    Logs a watering event for a plant.
-    Calculates raw_elapsed_hours and effective_interval_hours based on soil state.
-    """
     plant = db.query(Plant).filter(Plant.id == plant_id).first()
     if not plant:
         raise HTTPException(status_code=404, detail="Plant not found")
@@ -549,7 +525,6 @@ def water_plant(plant_id: int, payload: WaterLogCreate, db: Session = Depends(ge
     db.add(new_log)
     db.commit()
 
-    # Recompute chronological intervals for full consistency
     recompute_plant_intervals(plant_id, db)
     db.refresh(plant)
 
@@ -562,7 +537,6 @@ def water_plant(plant_id: int, payload: WaterLogCreate, db: Session = Depends(ge
 
 @plants_router.put("/api/logs/{log_id}")
 def edit_watering_log(log_id: int, payload: WaterLogUpdate, db: Session = Depends(get_db)):
-    """Edits an existing watering log and recalculates affected plant intervals."""
     log = db.query(WateringLog).filter(WateringLog.id == log_id).first()
     if not log:
         raise HTTPException(status_code=404, detail="Log entry not found")
@@ -587,7 +561,6 @@ def edit_watering_log(log_id: int, payload: WaterLogUpdate, db: Session = Depend
 
 @plants_router.delete("/api/logs/{log_id}")
 def delete_watering_log(log_id: int, db: Session = Depends(get_db)):
-    """Deletes a mistake watering log and recomputes the plant's interval sequence."""
     log = db.query(WateringLog).filter(WateringLog.id == log_id).first()
     if not log:
         raise HTTPException(status_code=404, detail="Log entry not found")
@@ -606,15 +579,20 @@ def delete_watering_log(log_id: int, db: Session = Depends(get_db)):
 
 
 # ===================== STANDALONE APP INSTANCE =====================
-# Allows running plants_app independently if desired (e.g. for Render or standalone deployment)
 @asynccontextmanager
 async def plant_lifespan(app: FastAPI):
     init_plant_db()
     yield
 
 
-app = FastAPI(title="Plant Watering & Consumption Velocity Tracker", lifespan=plant_lifespan)
+app = FastAPI(title="Tmimer's Plants", lifespan=plant_lifespan)
 app.include_router(plants_router)
+
+
+@app.get("/healthz")
+@app.get("/health")
+def healthcheck():
+    return {"status": "ok", "app": "Tmimer's Plants"}
 
 
 @app.get("/")
@@ -624,5 +602,6 @@ def redirect_to_plants():
 
 if __name__ == "__main__":
     import uvicorn
-    init_plant_db()
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    port = int(os.environ.get("PORT", 8000))
+    print(f"[*] Starting server on 0.0.0.0:{port}...")
+    uvicorn.run("plants_app:app", host="0.0.0.0", port=port, log_level="info")
