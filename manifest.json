@@ -1,6 +1,6 @@
 {
-  "name": "Plant Watering & Velocity Tracker",
-  "short_name": "PlantTracker",
+  "name": "Tmimer's Plants",
+  "short_name": "TmimerPlants",
   "description": "Mobile Plant Watering & Consumption Velocity Tracker",
   "start_url": "/plants",
   "scope": "/plants",

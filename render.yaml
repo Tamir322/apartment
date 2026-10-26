@@ -1,13 +1,13 @@
 databases:
-  - name: plant-db
+  - name: tmimer-plant-db
     databaseName: plants
-    user: plantuser
+    user: tmimer
     plan: free
     region: oregon
 
 services:
   - type: web
-    name: plant-watering-tracker
+    name: tmimer-plants
     env: python
     plan: free
     region: oregon
@@ -18,5 +18,5 @@ services:
         value: 3.11.0
       - key: DATABASE_URL
         fromDatabase:
-          name: plant-db
+          name: tmimer-plant-db
           property: connectionString
